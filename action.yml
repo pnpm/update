@@ -1,0 +1,127 @@
+name: 'pnpm update'
+description: 'Update dependencies (and optionally pnpm and the runtime) with pnpm, then open a pull request'
+branding:
+  icon: 'refresh-cw'
+  color: 'orange'
+inputs:
+  token:
+    description: >-
+      Token used to push the update branch and create the pull request.
+      Pull requests created with the default GITHUB_TOKEN do not trigger other
+      workflows; pass a GitHub App token or PAT if you want CI to run on the PR.
+    default: ${{ github.token }}
+  branch:
+    description: >-
+      Branch the updates are pushed to. It is force-pushed on every run, so at
+      most one update PR stays open at a time.
+    default: 'chore/update-dependencies'
+  base:
+    description: 'Base branch of the pull request.'
+    default: ${{ github.event.repository.default_branch }}
+  latest:
+    description: >-
+      Update dependencies to their latest versions, ignoring the ranges
+      declared in package.json. Set to "false" to update within ranges.
+    default: 'true'
+  exclude:
+    description: >-
+      Whitespace-separated package name patterns that should not be updated.
+      Example: "typescript @types/*"
+    default: ''
+  update-pnpm:
+    description: >-
+      Update pnpm itself (packageManager and devEngines.packageManager) with
+      `pnpm self-update`. Set to a dist-tag or exact version, or "false" to skip.
+    default: 'latest'
+  node:
+    description: >-
+      Update the Node.js version pinned in devEngines.runtime to the latest
+      release of this major version, e.g. "24". Empty to skip.
+    default: ''
+  verify:
+    description: >-
+      Shell commands run after updating (e.g. build and tests). If they fail,
+      no pull request is created.
+    default: ''
+  commit-message:
+    description: 'Message of the update commit.'
+    default: 'chore: update dependencies'
+  pr-title:
+    description: 'Title of the pull request.'
+    default: 'chore: update dependencies'
+  pr-body:
+    description: 'Body of the pull request.'
+    default: 'Automated dependency updates generated with `pnpm update`.'
+runs:
+  using: 'composite'
+  steps:
+    - name: Update dependencies
+      shell: bash
+      env:
+        LATEST: ${{ inputs.latest }}
+        EXCLUDE: ${{ inputs.exclude }}
+        UPDATE_PNPM: ${{ inputs.update-pnpm }}
+        NODE_MAJOR: ${{ inputs.node }}
+      run: |
+        set -euo pipefail
+        # Keep patterns like "@types/*" from glob-expanding against the repo.
+        set -f
+
+        args=(--recursive)
+        if [ "$LATEST" = "true" ]; then
+          args+=(--latest)
+        fi
+        for pattern in $EXCLUDE; do
+          args+=("!$pattern")
+        done
+        pnpm update "${args[@]}"
+
+        if [ -n "$NODE_MAJOR" ]; then
+          pnpm runtime set node "$NODE_MAJOR"
+        fi
+
+        # Last, so every earlier step runs on the pnpm the workflow installed.
+        if [ "$UPDATE_PNPM" != "false" ]; then
+          pnpm self-update "$UPDATE_PNPM"
+        fi
+
+    - name: Verify the updated project
+      if: ${{ inputs.verify != '' }}
+      shell: bash
+      run: ${{ inputs.verify }}
+
+    - name: Commit, push, and create the pull request
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        BRANCH: ${{ inputs.branch }}
+        BASE: ${{ inputs.base }}
+        COMMIT_MESSAGE: ${{ inputs.commit-message }}
+        PR_TITLE: ${{ inputs.pr-title }}
+        PR_BODY: ${{ inputs.pr-body }}
+      run: |
+        set -euo pipefail
+
+        if [ -z "$(git status --porcelain)" ]; then
+          echo "Everything is up to date."
+          exit 0
+        fi
+
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git checkout -B "$BRANCH"
+        git add -A
+        git commit -m "$COMMIT_MESSAGE"
+        # Push with an explicit single-use URL so the provided token is used
+        # even when the checkout persisted different (or no) credentials.
+        git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$BRANCH"
+
+        # A PR left open by a previous run already points at the branch we
+        # just force-pushed, so there is nothing more to do.
+        if [ -z "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[].number')" ]; then
+          gh pr create \
+            --title "$PR_TITLE" \
+            --body "$PR_BODY" \
+            --base "$BASE" \
+            --head "$BRANCH"
+        fi
