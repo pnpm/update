@@ -46,6 +46,14 @@ inputs:
       commit. Useful for propagating updated versions into other files;
       their changes are included in the pull request.
     default: ''
+  changesets:
+    description: >-
+      Generate a changeset declaring a patch bump for every package whose
+      production dependencies (dependencies or optionalDependencies) changed,
+      so the next release ships the updates. Only applies when the repository
+      uses changesets (.changeset/config.json exists). Set to "false" to
+      disable.
+    default: 'true'
   update-pnpm:
     description: >-
       How to update the pinned pnpm version (packageManager and
@@ -169,6 +177,52 @@ runs:
       if: ${{ inputs.post-update != '' }}
       shell: bash
       run: ${{ inputs.post-update }}
+
+    - name: Generate a changeset
+      if: ${{ inputs.changesets == 'true' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        # Only for repositories that use changesets.
+        [ -f .changeset/config.json ] || exit 0
+
+        # A changeset referencing a package the config ignores would make
+        # `changeset version` fail.
+        IGNORED="$(jq -r '(.ignore // [])[]' .changeset/config.json)"
+
+        # Packages whose production dependencies changed must be released
+        # for the updates to reach their consumers. devDependencies don't
+        # affect the published artifact, so they don't warrant a release.
+        PACKAGES=""
+        while IFS= read -r file; do
+          [ -n "$file" ] && [ -f "$file" ] || continue
+          BEFORE="$(git show "HEAD:$file" 2>/dev/null \
+            | jq -S '{d: .dependencies, o: .optionalDependencies}' 2>/dev/null || true)"
+          AFTER="$(jq -S '{d: .dependencies, o: .optionalDependencies}' "$file")"
+          [ "$BEFORE" = "$AFTER" ] && continue
+          NAME="$(jq -r 'if .private == true then empty else .name // empty end' "$file")"
+          [ -n "$NAME" ] || continue
+          if printf '%s\n' "$IGNORED" | grep -qxF "$NAME"; then continue; fi
+          PACKAGES="${PACKAGES}${NAME}"$'\n'
+        done <<< "$(git diff --name-only -- '*package.json')"
+
+        [ -n "$PACKAGES" ] || exit 0
+
+        # Dated file name: a fixed name could overwrite a changeset from an
+        # earlier update PR that merged but has not been released yet.
+        FILE=".changeset/pnpm-update-$(date +%Y-%m-%d).md"
+        {
+          echo '---'
+          printf '%s' "$PACKAGES" | while IFS= read -r name; do
+            echo "\"$name\": patch"
+          done
+          echo '---'
+          echo
+          echo 'Update dependencies.'
+        } > "$FILE"
+        echo "Created $FILE for:"
+        printf '%s' "$PACKAGES"
 
     - name: Verify the updated project
       if: ${{ inputs.verify != '' }}
