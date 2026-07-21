@@ -54,7 +54,7 @@ jobs:
 |---|---|---|
 | `token` | `github.token` | Token used to push the branch and create the PR. PRs created with the default `GITHUB_TOKEN` don't trigger other workflows; pass a GitHub App token or PAT if you want CI to run on the PR. |
 | `branch` | `chore/update-dependencies` | Branch the updates are pushed to (force-pushed on every run, so at most one update PR stays open). |
-| `base` | repository default branch | Base branch of the pull request. |
+| `base` | repository default branch | Branch the updates are based on and the pull request targets. |
 | `latest` | `true` | Update to the latest versions, ignoring `package.json` ranges. Set to `false` to update within ranges. |
 | `exclude` | — | Whitespace-separated package name patterns that should not be updated, e.g. `typescript @types/*`. |
 | `update-pnpm` | `latest` | Bump pnpm itself via `pnpm self-update`. A dist-tag or exact version, or `false` to skip. |

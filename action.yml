@@ -16,7 +16,7 @@ inputs:
       most one update PR stays open at a time.
     default: 'chore/update-dependencies'
   base:
-    description: 'Base branch of the pull request.'
+    description: 'Branch the updates are based on and the pull request targets.'
     default: ${{ github.event.repository.default_branch }}
   latest:
     description: >-
@@ -55,6 +55,20 @@ inputs:
 runs:
   using: 'composite'
   steps:
+    - name: Prepare the update branch
+      shell: bash
+      env:
+        BRANCH: ${{ inputs.branch }}
+        BASE: ${{ inputs.base }}
+      run: |
+        set -euo pipefail
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        # Base the update on the latest base branch, even when the workflow
+        # was dispatched from another ref or the checkout is shallow.
+        git fetch origin "$BASE"
+        git checkout -B "$BRANCH" FETCH_HEAD
+
     - name: Update dependencies
       shell: bash
       env:
@@ -107,14 +121,18 @@ runs:
           exit 0
         fi
 
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-        git checkout -B "$BRANCH"
         git add -A
         git commit -m "$COMMIT_MESSAGE"
-        # Push with an explicit single-use URL so the provided token is used
-        # even when the checkout persisted different (or no) credentials.
-        git push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$BRANCH"
+
+        # Remove any credentials persisted by actions/checkout: they would
+        # take precedence over the token this action was given, silently
+        # downgrading a user-supplied PAT or App token to GITHUB_TOKEN.
+        git config --local --unset-all http.https://github.com/.extraheader || true
+        # Supply the token through a credential helper (it reads GH_TOKEN
+        # from the environment) so it never appears on a command line.
+        git -c credential.helper= \
+            -c credential.helper='!f() { echo username=x-access-token; echo "password=${GH_TOKEN}"; }; f' \
+            push --force origin "$BRANCH"
 
         # A PR left open by a previous run already points at the branch we
         # just force-pushed, so there is nothing more to do.
