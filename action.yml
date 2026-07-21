@@ -18,15 +18,33 @@ inputs:
   base:
     description: 'Branch the updates are based on and the pull request targets.'
     default: ${{ github.event.repository.default_branch }}
-  latest:
+  update-deps:
     description: >-
-      Update dependencies to their latest versions, ignoring the ranges
-      declared in package.json. Set to "false" to update within ranges.
+      How to update dependencies with `pnpm update`. "latest" updates them to
+      their latest versions, ignoring the ranges declared in package.json;
+      "ranges" updates them within those ranges; "false" skips manifest
+      updates entirely (combined with refresh-lockfile, this refreshes the
+      lockfile without touching any package.json).
+    default: 'latest'
+  refresh-lockfile:
+    description: >-
+      Delete pnpm-lock.yaml and node_modules before updating, so the whole
+      dependency graph — including transitive dependencies of unchanged
+      packages — is freshly resolved instead of reused from the existing
+      lockfile. Set to "false" to keep existing resolutions where possible.
     default: 'true'
   exclude:
     description: >-
-      Whitespace-separated package name patterns that should not be updated.
-      Example: "typescript @types/*"
+      Whitespace-separated package name patterns whose package.json ranges
+      should not be updated. Example: "typescript @types/*". Note that with
+      refresh-lockfile, excluded packages are still re-resolved within their
+      kept ranges.
+    default: ''
+  post-update:
+    description: >-
+      Shell commands run after the updates, before verification and the
+      commit. Useful for propagating updated versions into other files;
+      their changes are included in the pull request.
     default: ''
   update-pnpm:
     description: >-
@@ -78,7 +96,8 @@ runs:
     - name: Update dependencies
       shell: bash
       env:
-        LATEST: ${{ inputs.latest }}
+        UPDATE_DEPS: ${{ inputs.update-deps }}
+        REFRESH_LOCKFILE: ${{ inputs.refresh-lockfile }}
         EXCLUDE: ${{ inputs.exclude }}
         UPDATE_PNPM: ${{ inputs.update-pnpm }}
         NODE: ${{ inputs.node }}
@@ -87,15 +106,16 @@ runs:
         # Keep patterns like "@types/*" from glob-expanding against the repo.
         set -f
 
-        args=(--recursive)
-        if [ "$LATEST" = "true" ]; then
-          args+=(--latest)
-        fi
-        for pattern in $EXCLUDE; do
-          args+=("!$pattern")
-        done
-        pnpm update "${args[@]}"
+        case "$UPDATE_DEPS" in
+          latest|ranges|false) ;;
+          *)
+            echo "::error::Invalid value for the update-deps input: ${UPDATE_DEPS}. Expected latest, ranges, or false."
+            exit 1
+            ;;
+        esac
 
+        # Update the runtime pin first, so the installs below run with it in
+        # place and sync anything derived from it.
         if [ "$NODE" != "false" ]; then
           if [ -n "$NODE" ]; then
             pnpm runtime set node "$NODE"
@@ -114,6 +134,26 @@ runs:
           fi
         fi
 
+        if [ "$REFRESH_LOCKFILE" = "true" ]; then
+          # Remove node_modules too so pnpm cannot reuse the hidden lockfile
+          # in node_modules/.pnpm as the missing wanted lockfile and skip
+          # resolution.
+          rm -rf node_modules pnpm-lock.yaml
+        fi
+
+        if [ "$UPDATE_DEPS" = "false" ]; then
+          pnpm install
+        else
+          args=(--recursive)
+          if [ "$UPDATE_DEPS" = "latest" ]; then
+            args+=(--latest)
+          fi
+          for pattern in $EXCLUDE; do
+            args+=("!$pattern")
+          done
+          pnpm update "${args[@]}"
+        fi
+
         # Last, so every earlier step runs on the pnpm the workflow installed.
         if [ "$UPDATE_PNPM" != "false" ]; then
           if [ -n "$UPDATE_PNPM" ]; then
@@ -124,6 +164,11 @@ runs:
             pnpm self-update "$(pnpm --version | cut -d . -f 1)"
           fi
         fi
+
+    - name: Run post-update commands
+      if: ${{ inputs.post-update != '' }}
+      shell: bash
+      run: ${{ inputs.post-update }}
 
     - name: Verify the updated project
       if: ${{ inputs.verify != '' }}
