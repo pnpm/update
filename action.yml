@@ -30,13 +30,19 @@ inputs:
     default: ''
   update-pnpm:
     description: >-
-      Update pnpm itself (packageManager and devEngines.packageManager) with
-      `pnpm self-update`. Set to a dist-tag or exact version, or "false" to skip.
-    default: 'latest'
+      How to update the pinned pnpm version (packageManager and
+      devEngines.packageManager) via `pnpm self-update`. By default, updates
+      to the latest release of the currently pinned major version. Set to a
+      version, range, or dist-tag (e.g. "latest", "12", "next-12") to move
+      onto that instead, or "false" to skip.
+    default: ''
   node:
     description: >-
-      Update the Node.js version pinned in devEngines.runtime to the latest
-      release of this major version, e.g. "24". Empty to skip.
+      How to update the Node.js version pinned in devEngines.runtime. By
+      default, updates to the latest release of the currently pinned major
+      version (skipped when no Node.js version is pinned). Set to a spec
+      accepted by `pnpm runtime set node` (e.g. "24", "lts", "latest") to
+      move onto that instead, or "false" to skip.
     default: ''
   verify:
     description: >-
@@ -75,7 +81,7 @@ runs:
         LATEST: ${{ inputs.latest }}
         EXCLUDE: ${{ inputs.exclude }}
         UPDATE_PNPM: ${{ inputs.update-pnpm }}
-        NODE_MAJOR: ${{ inputs.node }}
+        NODE: ${{ inputs.node }}
       run: |
         set -euo pipefail
         # Keep patterns like "@types/*" from glob-expanding against the repo.
@@ -90,13 +96,33 @@ runs:
         done
         pnpm update "${args[@]}"
 
-        if [ -n "$NODE_MAJOR" ]; then
-          pnpm runtime set node "$NODE_MAJOR"
+        if [ "$NODE" != "false" ]; then
+          if [ -n "$NODE" ]; then
+            pnpm runtime set node "$NODE"
+          else
+            # Stay on the pinned major and only refresh within it: crossing
+            # toolchain majors usually needs coordinated changes (Dockerfiles,
+            # CI matrices, @types/node) that this job cannot make.
+            PINNED="$(jq -r '.devEngines.runtime // empty
+              | if type == "array" then .[] else . end
+              | select(.name == "node") | .version // empty' package.json | head -n 1 || true)"
+            if [ -n "$PINNED" ]; then
+              pnpm runtime set node "$(printf '%s' "$PINNED" | grep -oE '[0-9]+' | head -n 1)"
+            else
+              echo "No Node.js version pinned in devEngines.runtime; skipping the runtime update."
+            fi
+          fi
         fi
 
         # Last, so every earlier step runs on the pnpm the workflow installed.
         if [ "$UPDATE_PNPM" != "false" ]; then
-          pnpm self-update "$UPDATE_PNPM"
+          if [ -n "$UPDATE_PNPM" ]; then
+            pnpm self-update "$UPDATE_PNPM"
+          else
+            # A major bump of pnpm can rewrite the whole lockfile; keep that
+            # out of routine update PRs by staying on the pinned major.
+            pnpm self-update "$(pnpm --version | cut -d . -f 1)"
+          fi
         fi
 
     - name: Verify the updated project

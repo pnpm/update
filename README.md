@@ -1,8 +1,9 @@
 # pnpm/update
 
-Updates the dependencies of your project with `pnpm update`, optionally bumps
-the pinned pnpm (`packageManager` / `devEngines.packageManager`) and Node.js
-(`devEngines.runtime`) versions, and opens a pull request with the result.
+Updates the dependencies of your project with `pnpm update`, keeps the pinned
+pnpm (`packageManager` / `devEngines.packageManager`) and Node.js
+(`devEngines.runtime`) versions fresh — by default within their current major
+versions — and opens a pull request with the result.
 
 Unlike external dependency bots, this action runs pnpm itself, so it supports
 every feature of your workspace: catalogs, patched dependencies, config
@@ -40,7 +41,6 @@ jobs:
       - uses: pnpm/setup@v1
       - uses: pnpm/update@v0
         with:
-          node: 24
           verify: |
             pnpm build
             pnpm test
@@ -57,8 +57,8 @@ jobs:
 | `base` | repository default branch | Branch the updates are based on and the pull request targets. |
 | `latest` | `true` | Update to the latest versions, ignoring `package.json` ranges. Set to `false` to update within ranges. |
 | `exclude` | — | Whitespace-separated package name patterns that should not be updated, e.g. `typescript @types/*`. |
-| `update-pnpm` | `latest` | Bump pnpm itself via `pnpm self-update`. A dist-tag or exact version, or `false` to skip. |
-| `node` | — | Bump the Node.js version pinned in `devEngines.runtime` to the latest release of this major, e.g. `24`. Empty to skip. |
+| `update-pnpm` | pinned major | Bump pnpm itself via `pnpm self-update`. Defaults to the latest release of the currently pinned major; set a version, range, or dist-tag (`latest`, `12`, `next-12`) to move onto it, or `false` to skip. |
+| `node` | pinned major | Bump the Node.js version pinned in `devEngines.runtime`. Defaults to the latest release of the currently pinned major (skipped when nothing is pinned); set `24`, `lts`, or `latest` to move onto it, or `false` to skip. |
 | `verify` | — | Shell commands run after updating (build, tests). If they fail, no PR is created. |
 | `commit-message` | `chore: update dependencies` | Message of the update commit. |
 | `pr-title` | `chore: update dependencies` | Title of the pull request. |
