@@ -45,13 +45,14 @@ inputs:
     default: ''
   github-actions:
     description: >-
-      Also update the GitHub Actions pinned in .github/workflows/*.yml and
-      action.yml (via `pnpm update --include-github-actions`). Only applies
-      when update-deps is "latest" or "ranges". Pushing workflow-file changes
-      requires a token with the `workflow` scope (a PAT) or `workflows: write`
-      (a GitHub App) — the default GITHUB_TOKEN cannot. Set to "false" to
-      disable.
-    default: 'true'
+      Set to "true" to also update the GitHub Actions pinned in
+      .github/workflows/*.yml and action.yml (via
+      `pnpm update --include-github-actions`). Opt-in because pushing
+      workflow-file changes requires a token with the `workflow` scope (a PAT)
+      or `workflows: write` (a GitHub App); the default GITHUB_TOKEN cannot, so
+      enabling it without such a token fails the push. Only applies when
+      update-deps is "latest" or "ranges".
+    default: 'false'
   post-update:
     description: >-
       Shell commands run after the updates, before verification and the

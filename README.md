@@ -3,10 +3,14 @@
 Updates the dependencies of your project with pnpm, keeps the pinned
 pnpm (`packageManager` / `devEngines.packageManager`) and Node.js
 (`devEngines.runtime`) versions fresh — by default within their current major
-versions — and opens a pull request with the result. It also updates the
-GitHub Actions pinned in your workflow files. By default the lockfile is
-regenerated from scratch, so transitive dependencies of unchanged packages are
-refreshed too.
+versions — and opens a pull request with the result. It can optionally update
+the GitHub Actions pinned in your workflow files too. By default the lockfile
+is regenerated from scratch, so transitive dependencies of unchanged packages
+are refreshed too.
+
+The default setup needs no secrets: the built-in `GITHUB_TOKEN` is enough to
+update dependencies, pnpm, and Node.js, validate them with your own `verify`
+commands, and open a pull request.
 
 Unlike external dependency bots, this action runs pnpm itself, so it supports
 every feature of your workspace: catalogs, patched dependencies, config
@@ -53,19 +57,17 @@ jobs:
 
 ## Updating GitHub Actions
 
-Alongside your dependencies, the action bumps the GitHub Actions pinned in
-`.github/workflows/*.yml` and `action.yml` (via
-`pnpm update --include-github-actions`). This is on by default; set
-`github-actions: false` to turn it off.
-
-GitHub does not let the default `GITHUB_TOKEN` push changes to workflow files,
-so when this is enabled you must pass a `token` that carries the `workflow`
-scope (a PAT) or `workflows: write` (a GitHub App). Otherwise the push fails as
-soon as an action needs updating:
+The action can also bump the GitHub Actions pinned in `.github/workflows/*.yml`
+and `action.yml` (via `pnpm update --include-github-actions`). This is **opt-in**
+(`github-actions: true`) because GitHub does not let the default `GITHUB_TOKEN`
+push changes to workflow files — you must pass a `token` that carries the
+`workflow` scope (a PAT) or `workflows: write` (a GitHub App). Without such a
+token the push fails as soon as an action needs updating.
 
 ```yaml
       - uses: pnpm/update@v0
         with:
+          github-actions: true
           token: ${{ secrets.UPDATE_TOKEN }} # PAT with `repo` + `workflow`
 ```
 
@@ -97,7 +99,7 @@ prereleases while propagating updated versions into other files):
 | `update-deps` | `latest` | How to update dependencies: `latest` ignores `package.json` ranges, `ranges` stays within them, `false` skips manifest updates entirely. |
 | `refresh-lockfile` | `true` | Delete `pnpm-lock.yaml` and `node_modules` before updating, so the whole graph — including transitive dependencies — is freshly resolved. Set to `false` to keep existing resolutions where possible. |
 | `exclude` | — | Whitespace-separated package name patterns whose ranges should not be updated, e.g. `typescript @types/*`. With `refresh-lockfile`, excluded packages are still re-resolved within their kept ranges. |
-| `github-actions` | `true` | Also update the GitHub Actions pinned in `.github/workflows/*.yml` and `action.yml`. Only applies when `update-deps` is `latest` or `ranges`. Requires a `token` with the `workflow` scope (see above). Set to `false` to disable. |
+| `github-actions` | `false` | Set to `true` to also update the GitHub Actions pinned in `.github/workflows/*.yml` and `action.yml`. Only applies when `update-deps` is `latest` or `ranges`. Requires a `token` with the `workflow` scope (see above). |
 | `post-update` | — | Shell commands run after the updates, before verification; their changes are included in the PR. |
 | `changesets` | `true` | In repositories that use changesets: generate a changeset declaring a patch bump for every package whose production dependencies changed, so the next release ships the updates. Private, ignored, and dev-dependency-only changes are skipped. Set to `false` to disable. Note: updates that only change `catalog:` entries in `pnpm-workspace.yaml` are not yet detected. |
 | `update-pnpm` | pinned major | Bump pnpm itself via `pnpm self-update`. Defaults to the latest release of the currently pinned major; set a version, range, or dist-tag (`latest`, `12`, `next-12`) to move onto it, or `false` to skip. |
