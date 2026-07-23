@@ -20,14 +20,16 @@ validate_update_deps() {
 #   $1  update-deps           (latest|ranges — the caller handles "false")
 #   $2  include-github-actions (true|false)
 #   $3  exclude               (whitespace-separated name patterns)
+#   $4  changeset-arg         (--changeset, --no-changeset, or empty)
 # The exclude string is deliberately word-split; the caller runs with `set -f`
 # so patterns like "@types/*" reach pnpm as negation selectors rather than
 # globbing against the working tree.
 pnpm_update_args() {
-  local update_deps="$1" include_actions="$2" exclude="$3" pattern
+  local update_deps="$1" include_actions="$2" exclude="$3" changeset_arg="${4:-}" pattern
   printf '%s\n' --recursive
   [ "$update_deps" = latest ] && printf '%s\n' --latest
   [ "$include_actions" = true ] && printf '%s\n' --include-github-actions
+  [ -n "$changeset_arg" ] && printf '%s\n' "$changeset_arg"
   # shellcheck disable=SC2086 # intentional word splitting; caller sets -f
   for pattern in $exclude; do
     printf '!%s\n' "$pattern"

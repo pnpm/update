@@ -67,6 +67,21 @@ teardown() {
   [ "${#lines[@]}" -eq 2 ]
 }
 
+@test "pnpm_update_args: changeset arg is appended when set" {
+  run pnpm_update_args latest false '' '--changeset'
+  [ "${lines[2]}" = '--changeset' ]
+}
+
+@test "pnpm_update_args: --no-changeset is passed through" {
+  run pnpm_update_args ranges false '' '--no-changeset'
+  [ "${lines[1]}" = '--no-changeset' ]
+}
+
+@test "pnpm_update_args: no changeset arg when empty" {
+  run pnpm_update_args latest true 'webpack' ''
+  [[ "$output" != *changeset* ]]
+}
+
 # --- node_major_from_manifest ---------------------------------------------
 
 @test "node_major_from_manifest: object form" {
