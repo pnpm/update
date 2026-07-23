@@ -1,0 +1,181 @@
+name: 'pnpm update'
+description: 'Update dependencies (and optionally pnpm and the runtime) with pnpm, then open a pull request'
+branding:
+  icon: 'refresh-cw'
+  color: 'orange'
+inputs:
+  token:
+    description: >-
+      Token used to push the update branch and create the pull request.
+      Pull requests created with the default GITHUB_TOKEN do not trigger other
+      workflows; pass a GitHub App token or PAT if you want CI to run on the PR.
+      When github-actions is enabled, the token must additionally carry the
+      `workflow` scope (PAT) or `workflows: write` (App) to push changes to
+      .github/workflows files.
+    default: ${{ github.token }}
+  branch:
+    description: >-
+      Branch the updates are pushed to. It is force-pushed on every run, so at
+      most one update PR stays open at a time.
+    default: 'chore/update-dependencies'
+  base:
+    description: 'Branch the updates are based on and the pull request targets.'
+    default: ${{ github.event.repository.default_branch }}
+  update-deps:
+    description: >-
+      How to update dependencies with `pnpm update`. "latest" updates them to
+      their latest versions, ignoring the ranges declared in package.json;
+      "ranges" updates them within those ranges; "false" skips manifest
+      updates entirely (combined with refresh-lockfile, this refreshes the
+      lockfile without touching any package.json).
+    default: 'latest'
+  refresh-lockfile:
+    description: >-
+      Delete pnpm-lock.yaml and node_modules before updating, so the whole
+      dependency graph — including transitive dependencies of unchanged
+      packages — is freshly resolved instead of reused from the existing
+      lockfile. Set to "false" to keep existing resolutions where possible.
+    default: 'true'
+  exclude:
+    description: >-
+      Whitespace-separated package name patterns whose package.json ranges
+      should not be updated. Example: "typescript @types/*". Note that with
+      refresh-lockfile, excluded packages are still re-resolved within their
+      kept ranges.
+    default: ''
+  github-actions:
+    description: >-
+      Set to "true" to also update the GitHub Actions pinned in
+      .github/workflows/*.yml and action.yml (via
+      `pnpm update --include-github-actions`). Opt-in because pushing
+      workflow-file changes requires a token with the `workflow` scope (a PAT)
+      or `workflows: write` (a GitHub App); the default GITHUB_TOKEN cannot, so
+      enabling it without such a token fails the push. Only applies when
+      update-deps is "latest" or "ranges".
+    default: 'false'
+  post-update:
+    description: >-
+      Shell commands run after the updates, before verification and the
+      commit. Useful for propagating updated versions into other files;
+      their changes are included in the pull request.
+    default: ''
+  changesets:
+    description: >-
+      Generate a changeset for the updated dependencies via
+      `pnpm update --changeset`, so the next release ships them: a patch bump
+      for changed production dependencies, a major bump for changed peer
+      dependencies, and the same for packages consuming a changed `catalog:`
+      entry. Only applies when update-deps is "latest" or "ranges", the
+      repository uses changesets (.changeset/config.json exists), and the
+      installed pnpm supports `--changeset`. Set to "false" to disable (which
+      also passes `--no-changeset`, overriding a repo-level `update.changeset`).
+    default: 'true'
+  update-pnpm:
+    description: >-
+      How to update the pinned pnpm version (packageManager and
+      devEngines.packageManager) via `pnpm self-update`. By default, updates
+      to the latest release of the currently pinned major version. Set to a
+      version, range, or dist-tag (e.g. "latest", "12", "next-12") to move
+      onto that instead, or "false" to skip.
+    default: ''
+  node:
+    description: >-
+      How to update the Node.js version pinned in devEngines.runtime. By
+      default, updates to the latest release of the currently pinned major
+      version (skipped when no Node.js version is pinned). Set to a spec
+      accepted by `pnpm runtime set node` (e.g. "24", "lts", "latest") to
+      move onto that instead, or "false" to skip.
+    default: ''
+  verify:
+    description: >-
+      Shell commands run after updating (e.g. build and tests). If they fail,
+      no pull request is created.
+    default: ''
+  commit-message:
+    description: 'Message of the update commit.'
+    default: 'chore: update dependencies'
+  pr-title:
+    description: 'Title of the pull request.'
+    default: 'chore: update dependencies'
+  pr-body:
+    description: 'Body of the pull request.'
+    default: 'Automated dependency updates generated with `pnpm update`.'
+runs:
+  using: 'composite'
+  steps:
+    - name: Prepare the update branch
+      shell: bash
+      env:
+        BRANCH: ${{ inputs.branch }}
+        BASE: ${{ inputs.base }}
+      run: |
+        set -euo pipefail
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        # Base the update on the latest base branch, even when the workflow
+        # was dispatched from another ref or the checkout is shallow.
+        git fetch origin "$BASE"
+        git checkout -B "$BRANCH" FETCH_HEAD
+
+    - name: Update dependencies
+      shell: bash
+      env:
+        UPDATE_DEPS: ${{ inputs.update-deps }}
+        REFRESH_LOCKFILE: ${{ inputs.refresh-lockfile }}
+        EXCLUDE: ${{ inputs.exclude }}
+        # Not GITHUB_ACTIONS: the runner already sets that to "true".
+        INCLUDE_GITHUB_ACTIONS: ${{ inputs.github-actions }}
+        CHANGESETS: ${{ inputs.changesets }}
+        UPDATE_PNPM: ${{ inputs.update-pnpm }}
+        NODE: ${{ inputs.node }}
+      run: bash "$GITHUB_ACTION_PATH/scripts/update.sh"
+
+    - name: Run post-update commands
+      if: ${{ inputs.post-update != '' }}
+      shell: bash
+      run: ${{ inputs.post-update }}
+
+    - name: Verify the updated project
+      if: ${{ inputs.verify != '' }}
+      shell: bash
+      run: ${{ inputs.verify }}
+
+    - name: Commit, push, and create the pull request
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        BRANCH: ${{ inputs.branch }}
+        BASE: ${{ inputs.base }}
+        COMMIT_MESSAGE: ${{ inputs.commit-message }}
+        PR_TITLE: ${{ inputs.pr-title }}
+        PR_BODY: ${{ inputs.pr-body }}
+      run: |
+        set -euo pipefail
+
+        if [ -z "$(git status --porcelain)" ]; then
+          echo "Everything is up to date."
+          exit 0
+        fi
+
+        git add -A
+        git commit -m "$COMMIT_MESSAGE"
+
+        # Remove any credentials persisted by actions/checkout: they would
+        # take precedence over the token this action was given, silently
+        # downgrading a user-supplied PAT or App token to GITHUB_TOKEN.
+        git config --local --unset-all "http.${GITHUB_SERVER_URL:-https://github.com}/.extraheader" || true
+        # Supply the token through a credential helper (it reads GH_TOKEN
+        # from the environment) so it never appears on a command line.
+        git -c credential.helper= \
+            -c credential.helper='!f() { echo username=x-access-token; echo "password=${GH_TOKEN}"; }; f' \
+            push --force origin "$BRANCH"
+
+        # A PR left open by a previous run already points at the branch we
+        # just force-pushed, so there is nothing more to do.
+        if [ -z "$(gh pr list --head "$BRANCH" --state open --json number --jq '.[].number')" ]; then
+          gh pr create \
+            --title "$PR_TITLE" \
+            --body "$PR_BODY" \
+            --base "$BASE" \
+            --head "$BRANCH"
+        fi

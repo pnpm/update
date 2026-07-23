@@ -1,0 +1,26 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request: {}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: latest
+      # ubuntu runners ship shellcheck; lint the real bash scripts (the action's
+      # thin ${{ }} wiring steps aren't shell to check).
+      - name: Shellcheck the scripts
+        run: shellcheck scripts/*.sh
+      # Fetch and run bats with pnpm's own `pnx` (= `pnpm dlx`), dogfooding pnpm
+      # instead of npm's npx.
+      - name: Run unit and integration tests
+        run: pnx bats test/
