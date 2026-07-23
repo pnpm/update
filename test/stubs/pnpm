@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Test stub for `pnpm`: records every invocation to $PNPM_LOG and answers the
+# few queries scripts/update.sh makes. Behavior is tuned via env vars:
+#   STUB_SUPPORTS_CHANGESET  "1" (default) => `update --help` lists --changeset
+#   STUB_PNPM_VERSION        version printed by `pnpm --version` (default 11.5.0)
+printf '%s\n' "$*" >> "$PNPM_LOG"
+
+if [ "$1" = "--version" ]; then
+  echo "${STUB_PNPM_VERSION:-11.5.0}"
+  exit 0
+fi
+
+if [ "$1" = "update" ] && [ "$2" = "--help" ]; then
+  if [ "${STUB_SUPPORTS_CHANGESET:-1}" = "1" ]; then
+    echo "      --changeset            Generate a changeset for the updated deps"
+  fi
+  exit 0
+fi
+
+exit 0

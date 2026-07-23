@@ -91,9 +91,16 @@ prereleases while propagating updated versions into other files):
 
 ## Development
 
-The action's pure logic (update-argument construction, `update-deps`
-validation, and the Node.js-major extraction) lives in `scripts/lib.sh`, which
-the action sources at runtime and which is unit-tested with
+The action's logic lives in `scripts/` so it can be tested outside of a live
+workflow:
+
+- `scripts/lib.sh` — pure helpers (update-argument construction, `update-deps`
+  validation, Node.js-major extraction), unit-tested in `test/lib.bats`.
+- `scripts/update.sh` — the whole "Update dependencies" step, driven end-to-end
+  in `test/update.bats` against a stubbed `pnpm` (`test/stubs/pnpm`) that
+  records the commands it would run.
+
+Run the checks with [shellcheck](https://www.shellcheck.net) and
 [bats](https://github.com/bats-core/bats-core):
 
 ```sh
