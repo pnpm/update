@@ -128,14 +128,10 @@ runs:
         set -euo pipefail
         # Keep patterns like "@types/*" from glob-expanding against the repo.
         set -f
+        # shellcheck source=scripts/lib.sh
+        source "$GITHUB_ACTION_PATH/scripts/lib.sh"
 
-        case "$UPDATE_DEPS" in
-          latest|ranges|false) ;;
-          *)
-            echo "::error::Invalid value for the update-deps input: ${UPDATE_DEPS}. Expected latest, ranges, or false."
-            exit 1
-            ;;
-        esac
+        validate_update_deps "$UPDATE_DEPS" || exit 1
 
         # Update the runtime pin first, so the installs below run with it in
         # place and sync anything derived from it.
@@ -146,11 +142,9 @@ runs:
             # Stay on the pinned major and only refresh within it: crossing
             # toolchain majors usually needs coordinated changes (Dockerfiles,
             # CI matrices, @types/node) that this job cannot make.
-            PINNED="$(jq -r '.devEngines.runtime // empty
-              | if type == "array" then .[] else . end
-              | select(.name == "node") | .version // empty' package.json | head -n 1 || true)"
-            if [ -n "$PINNED" ]; then
-              pnpm runtime set node "$(printf '%s' "$PINNED" | grep -oE '[0-9]+' | head -n 1)"
+            NODE_MAJOR="$(node_major_from_manifest package.json)"
+            if [ -n "$NODE_MAJOR" ]; then
+              pnpm runtime set node "$NODE_MAJOR"
             else
               echo "No Node.js version pinned in devEngines.runtime; skipping the runtime update."
             fi
@@ -172,16 +166,7 @@ runs:
             echo "::notice::github-actions updates are skipped because update-deps is \"false\" (they need a dependency update pass)."
           fi
         else
-          args=(--recursive)
-          if [ "$UPDATE_DEPS" = "latest" ]; then
-            args+=(--latest)
-          fi
-          if [ "$INCLUDE_GITHUB_ACTIONS" = "true" ]; then
-            args+=(--include-github-actions)
-          fi
-          for pattern in $EXCLUDE; do
-            args+=("!$pattern")
-          done
+          mapfile -t args < <(pnpm_update_args "$UPDATE_DEPS" "$INCLUDE_GITHUB_ACTIONS" "$EXCLUDE")
           pnpm update "${args[@]}"
         fi
 

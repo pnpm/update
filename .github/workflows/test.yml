@@ -1,0 +1,24 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request: {}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      # ubuntu runners ship shellcheck; lint the sourceable library (the inline
+      # action steps carry unavoidable ${{ }} expression noise, so only the
+      # real bash scripts are checked here).
+      - name: Shellcheck the scripts
+        run: shellcheck scripts/*.sh
+      - name: Install bats
+        run: npm install -g bats
+      - name: Run unit tests
+        run: bats test/

@@ -89,6 +89,20 @@ prereleases while propagating updated versions into other files):
           token: ${{ secrets.UPDATE_TOKEN }}
 ```
 
+## Development
+
+The action's pure logic (update-argument construction, `update-deps`
+validation, and the Node.js-major extraction) lives in `scripts/lib.sh`, which
+the action sources at runtime and which is unit-tested with
+[bats](https://github.com/bats-core/bats-core):
+
+```sh
+shellcheck scripts/*.sh
+bats test/
+```
+
+CI runs both on every push and pull request.
+
 ## Inputs
 
 | Input | Default | Description |
