@@ -9,6 +9,9 @@ inputs:
       Token used to push the update branch and create the pull request.
       Pull requests created with the default GITHUB_TOKEN do not trigger other
       workflows; pass a GitHub App token or PAT if you want CI to run on the PR.
+      When github-actions is enabled, the token must additionally carry the
+      `workflow` scope (PAT) or `workflows: write` (App) to push changes to
+      .github/workflows files.
     default: ${{ github.token }}
   branch:
     description: >-
@@ -40,6 +43,15 @@ inputs:
       refresh-lockfile, excluded packages are still re-resolved within their
       kept ranges.
     default: ''
+  github-actions:
+    description: >-
+      Also update the GitHub Actions pinned in .github/workflows/*.yml and
+      action.yml (via `pnpm update --include-github-actions`). Only applies
+      when update-deps is "latest" or "ranges". Pushing workflow-file changes
+      requires a token with the `workflow` scope (a PAT) or `workflows: write`
+      (a GitHub App) — the default GITHUB_TOKEN cannot. Set to "false" to
+      disable.
+    default: 'true'
   post-update:
     description: >-
       Shell commands run after the updates, before verification and the
@@ -107,6 +119,8 @@ runs:
         UPDATE_DEPS: ${{ inputs.update-deps }}
         REFRESH_LOCKFILE: ${{ inputs.refresh-lockfile }}
         EXCLUDE: ${{ inputs.exclude }}
+        # Not GITHUB_ACTIONS: the runner already sets that to "true".
+        INCLUDE_GITHUB_ACTIONS: ${{ inputs.github-actions }}
         UPDATE_PNPM: ${{ inputs.update-pnpm }}
         NODE: ${{ inputs.node }}
       run: |
@@ -151,10 +165,18 @@ runs:
 
         if [ "$UPDATE_DEPS" = "false" ]; then
           pnpm install
+          if [ "$INCLUDE_GITHUB_ACTIONS" = "true" ]; then
+            # `--include-github-actions` is a `pnpm update` flag; the install
+            # path above never reaches it, so there's nothing to update here.
+            echo "::notice::github-actions updates are skipped because update-deps is \"false\" (they need a dependency update pass)."
+          fi
         else
           args=(--recursive)
           if [ "$UPDATE_DEPS" = "latest" ]; then
             args+=(--latest)
+          fi
+          if [ "$INCLUDE_GITHUB_ACTIONS" = "true" ]; then
+            args+=(--include-github-actions)
           fi
           for pattern in $EXCLUDE; do
             args+=("!$pattern")
