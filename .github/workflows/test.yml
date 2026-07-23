@@ -13,12 +13,11 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      # ubuntu runners ship shellcheck; lint the sourceable library (the inline
-      # action steps carry unavoidable ${{ }} expression noise, so only the
-      # real bash scripts are checked here).
+      # ubuntu runners ship shellcheck; lint the real bash scripts (the action's
+      # thin ${{ }} wiring steps aren't shell to check).
       - name: Shellcheck the scripts
         run: shellcheck scripts/*.sh
-      - name: Install bats
-        run: npm install -g bats
-      - name: Run unit tests
-        run: bats test/
+      # Run bats via npx rather than `npm install -g` (which needs root for the
+      # global prefix on hosted runners); Node/npx are preinstalled.
+      - name: Run unit and integration tests
+        run: npx --yes bats test/
