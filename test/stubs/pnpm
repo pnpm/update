@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
-# Test stub for `pnpm`: records every invocation to $PNPM_LOG and answers the
-# few queries scripts/update.sh makes. Behavior is tuned via env vars:
+# Test stub for `pnpm`: records every invocation to $PNPM_LOG (prefixed with
+# PNPM_CONFIG_MINIMUM_RELEASE_AGE=<value> when that variable is set, so tests
+# can assert on its scoping) and answers the few queries scripts/update.sh
+# makes. Behavior is tuned via env vars:
 #   STUB_SUPPORTS_CHANGESET  "1" (default) => `update --help` lists --changeset
 #   STUB_PNPM_VERSION        version printed by `pnpm --version` (default 11.5.0)
-printf '%s\n' "$*" >> "$PNPM_LOG"
+prefix=''
+if [ -n "${PNPM_CONFIG_MINIMUM_RELEASE_AGE:-}" ]; then
+  prefix="PNPM_CONFIG_MINIMUM_RELEASE_AGE=$PNPM_CONFIG_MINIMUM_RELEASE_AGE "
+fi
+printf '%s\n' "$prefix$*" >> "$PNPM_LOG"
 
 if [ "$1" = "--version" ]; then
   echo "${STUB_PNPM_VERSION:-11.5.0}"

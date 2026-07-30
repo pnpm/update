@@ -23,6 +23,7 @@ setup() {
   export INCLUDE_GITHUB_ACTIONS=false
   export CHANGESETS=true
   export UPDATE_PNPM=false
+  export UPDATE_PNPM_MINIMUM_RELEASE_AGE=''
   export NODE=''
   printf '%s' '{"name":"fixture","devEngines":{"runtime":{"name":"node","version":"^24.4.0"}}}' > package.json
 }
@@ -134,4 +135,20 @@ teardown() {
   export UPDATE_PNPM=false
   run bash "$SCRIPT"
   ! grep -Fq 'self-update' "$PNPM_LOG"
+}
+
+@test "update-pnpm-minimum-release-age applies to self-update only" {
+  export UPDATE_PNPM=next-12
+  export UPDATE_PNPM_MINIMUM_RELEASE_AGE=0
+  run bash "$SCRIPT"
+  [ "$status" -eq 0 ]
+  grep -Fqx 'update --recursive --latest --changeset' "$PNPM_LOG"
+  grep -Fqx 'PNPM_CONFIG_MINIMUM_RELEASE_AGE=0 self-update next-12' "$PNPM_LOG"
+}
+
+@test "update-pnpm-minimum-release-age unset leaves self-update env alone" {
+  export UPDATE_PNPM=next-12
+  run bash "$SCRIPT"
+  grep -Fqx 'self-update next-12' "$PNPM_LOG"
+  ! grep -Fq 'PNPM_CONFIG_MINIMUM_RELEASE_AGE' "$PNPM_LOG"
 }
