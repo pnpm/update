@@ -78,6 +78,17 @@ inputs:
       version, range, or dist-tag (e.g. "latest", "12", "next-12") to move
       onto that instead, or "false" to skip.
     default: ''
+  update-pnpm-minimum-release-age:
+    description: >-
+      Override pnpm's `minimumReleaseAge` (in minutes) for the `pnpm
+      self-update` step, via `PNPM_CONFIG_MINIMUM_RELEASE_AGE`. pnpm 12
+      defaults the cutoff to 24 hours and self-update deliberately ignores the
+      repository's `minimumReleaseAgeExclude`, so a freshly published pnpm
+      release is silently held back until it matures. Set to "0" to always
+      move to the newest release the update-pnpm spec resolves to. Empty
+      keeps pnpm's default behavior. Only affects the pnpm self-update; the
+      dependency update keeps the repository's own release-age settings.
+    default: ''
   node:
     description: >-
       How to update the Node.js version pinned in devEngines.runtime. By
@@ -127,6 +138,7 @@ runs:
         INCLUDE_GITHUB_ACTIONS: ${{ inputs.github-actions }}
         CHANGESETS: ${{ inputs.changesets }}
         UPDATE_PNPM: ${{ inputs.update-pnpm }}
+        UPDATE_PNPM_MINIMUM_RELEASE_AGE: ${{ inputs.update-pnpm-minimum-release-age }}
         NODE: ${{ inputs.node }}
       run: bash "$GITHUB_ACTION_PATH/scripts/update.sh"
 

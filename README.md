@@ -85,6 +85,10 @@ prereleases while propagating updated versions into other files):
         with:
           update-deps: false
           update-pnpm: next-12
+          # Follow prereleases as soon as they are published: pnpm 12's
+          # default 24-hour minimumReleaseAge would otherwise hold a
+          # same-day release back from self-update.
+          update-pnpm-minimum-release-age: 0
           post-update: pnpm update-manifests
           token: ${{ secrets.UPDATE_TOKEN }}
 ```
@@ -124,6 +128,7 @@ CI runs both on every push and pull request.
 | `post-update` | — | Shell commands run after the updates, before verification; their changes are included in the PR. |
 | `changesets` | `true` | In repositories that use changesets: generate a changeset for the updated dependencies via `pnpm update --changeset` (patch for production deps, major for peer deps, and the same for packages consuming a changed `catalog:` entry). Private, ignored, and dev-only changes are skipped. Only applies in `latest`/`ranges` mode and when the installed pnpm supports `--changeset`. Set to `false` to disable. |
 | `update-pnpm` | pinned major | Bump pnpm itself via `pnpm self-update`. Defaults to the latest release of the currently pinned major; set a version, range, or dist-tag (`latest`, `12`, `next-12`) to move onto it, or `false` to skip. |
+| `update-pnpm-minimum-release-age` | — | Override pnpm's `minimumReleaseAge` (in minutes) for the `pnpm self-update` step. pnpm 12 defaults the cutoff to 24 hours and self-update deliberately ignores the repository's `minimumReleaseAgeExclude`, so a freshly published pnpm release is held back until it matures. Set `0` to always move to the newest release the `update-pnpm` spec resolves to. Only affects the pnpm self-update; the dependency update keeps the repository's own release-age settings. |
 | `node` | pinned major | Bump the Node.js version pinned in `devEngines.runtime`. Defaults to the latest release of the currently pinned major (skipped when nothing is pinned); set `24`, `lts`, or `latest` to move onto it, or `false` to skip. |
 | `verify` | — | Shell commands run after updating (build, tests). If they fail, no PR is created. |
 | `commit-message` | `chore: update dependencies` | Message of the update commit. |

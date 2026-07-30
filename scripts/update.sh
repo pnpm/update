@@ -69,6 +69,11 @@ fi
 
 # Last, so every earlier step runs on the pnpm the workflow installed.
 if [ "$UPDATE_PNPM" != "false" ]; then
+  # Scoped to self-update: everything before this point already ran, so the
+  # dependency update keeps the repository's own release-age settings.
+  if [ -n "$UPDATE_PNPM_MINIMUM_RELEASE_AGE" ]; then
+    export PNPM_CONFIG_MINIMUM_RELEASE_AGE="$UPDATE_PNPM_MINIMUM_RELEASE_AGE"
+  fi
   if [ -n "$UPDATE_PNPM" ]; then
     pnpm self-update "$UPDATE_PNPM"
   else
