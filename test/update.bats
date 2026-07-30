@@ -131,6 +131,16 @@ teardown() {
   grep -Fqx 'self-update next-12' "$PNPM_LOG"
 }
 
+@test "self-update runs before the dependency update" {
+  export UPDATE_PNPM=next-12
+  run bash "$SCRIPT"
+  [ "$status" -eq 0 ]
+  self_update_line="$(grep -Fn 'self-update next-12' "$PNPM_LOG" | cut -d : -f 1 | head -n 1)"
+  update_line="$(grep -Fn 'update --recursive' "$PNPM_LOG" | cut -d : -f 1 | head -n 1)"
+  [ -n "$self_update_line" ] && [ -n "$update_line" ]
+  [ "$self_update_line" -lt "$update_line" ]
+}
+
 @test "update-pnpm=false skips self-update" {
   export UPDATE_PNPM=false
   run bash "$SCRIPT"

@@ -76,7 +76,9 @@ inputs:
       devEngines.packageManager) via `pnpm self-update`. By default, updates
       to the latest release of the currently pinned major version. Set to a
       version, range, or dist-tag (e.g. "latest", "12", "next-12") to move
-      onto that instead, or "false" to skip.
+      onto that instead, or "false" to skip. The pnpm bump runs before
+      everything else, so the dependency update and the lockfile are produced
+      by the new pnpm version.
     default: ''
   update-pnpm-minimum-release-age:
     description: >-
