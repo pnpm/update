@@ -93,6 +93,10 @@ prereleases while propagating updated versions into other files):
           token: ${{ secrets.UPDATE_TOKEN }}
 ```
 
+The refresh also discards the current installation lockfile for the loaded
+linker and explicitly configured installation directories. Other files in
+those directories are preserved.
+
 ## Development
 
 The action's logic lives in `scripts/` so it can be tested outside of a live
@@ -110,9 +114,11 @@ Run the checks with [shellcheck](https://www.shellcheck.net) and
 ```sh
 shellcheck scripts/*.sh
 bats test/
+PNPM_TEST_BINARY=/path/to/pnpm node --test test/refresh-lockfile.test.mjs
 ```
 
-CI runs both on every push and pull request.
+CI runs shellcheck and bats on every push and pull request. The lockfile
+refresh tests require a pnpm build that supports the loaded linker.
 
 ## Inputs
 
