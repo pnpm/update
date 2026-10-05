@@ -54,9 +54,7 @@ if [ "$NODE" != "false" ]; then
 fi
 
 if [ "$REFRESH_LOCKFILE" = "true" ]; then
-  # Remove node_modules too so pnpm cannot reuse the hidden lockfile in
-  # node_modules/.pnpm as the missing wanted lockfile and skip resolution.
-  rm -rf node_modules pnpm-lock.yaml
+  node "$(dirname -- "${BASH_SOURCE[0]}")/refresh-lockfile.mjs"
 fi
 
 if [ "$UPDATE_DEPS" = "false" ]; then

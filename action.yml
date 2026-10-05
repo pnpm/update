@@ -31,7 +31,8 @@ inputs:
     default: 'latest'
   refresh-lockfile:
     description: >-
-      Delete pnpm-lock.yaml and node_modules before updating, so the whole
+      Delete pnpm-lock.yaml, node_modules, and the current installation lockfile
+      before updating, so the whole
       dependency graph — including transitive dependencies of unchanged
       packages — is freshly resolved instead of reused from the existing
       lockfile. Set to "false" to keep existing resolutions where possible.

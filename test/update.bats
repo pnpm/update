@@ -162,3 +162,38 @@ teardown() {
   grep -Fqx 'self-update next-12' "$PNPM_LOG"
   ! grep -Fq 'PNPM_CONFIG_MINIMUM_RELEASE_AGE' "$PNPM_LOG"
 }
+
+@test "loaded refresh removes installation state and preserves unrelated .pnpm files" {
+  export REFRESH_LOCKFILE=true UPDATE_DEPS=false STUB_CONFIG='{"nodeLinker":{"type":"loaded"}}'
+  mkdir -p .pnpm/.pnpm
+  touch .pnpm/.pnpm/lock.yaml .pnpm/keep
+  run bash "$SCRIPT"
+  [ "$status" -eq 0 ]
+  [ ! -e .pnpm/.pnpm/lock.yaml ]
+  [ -e .pnpm/keep ]
+  grep -Fqx 'install' "$PNPM_LOG"
+}
+
+@test "refresh respects explicitly configured installation directories" {
+  export REFRESH_LOCKFILE=true UPDATE_DEPS=false
+  export STUB_CONFIG='{"nodeLinker":{"type":"loaded"},"modulesDir":"custom modules","virtualStoreDir":"unrelated-store"}'
+  mkdir -p 'custom modules/.pnpm' .pnpm/.pnpm unrelated-store
+  touch 'custom modules/.pnpm/lock.yaml' .pnpm/.pnpm/lock.yaml unrelated-store/lock.yaml
+  run bash "$SCRIPT"
+  [ "$status" -eq 0 ]
+  [ ! -e 'custom modules/.pnpm/lock.yaml' ]
+  [ -e .pnpm/.pnpm/lock.yaml ]
+  [ -e unrelated-store/lock.yaml ]
+}
+
+@test "isolated refresh removes custom virtual store current lockfile only" {
+  export REFRESH_LOCKFILE=true UPDATE_DEPS=false
+  export STUB_CONFIG='{"virtualStoreDir":"custom store"}'
+  mkdir -p 'custom store' .pnpm
+  touch 'custom store/lock.yaml' 'custom store/keep' .pnpm/keep
+  run bash "$SCRIPT"
+  [ "$status" -eq 0 ]
+  [ ! -e 'custom store/lock.yaml' ]
+  [ -e 'custom store/keep' ]
+  [ -e .pnpm/keep ]
+}

@@ -5,6 +5,15 @@
 # makes. Behavior is tuned via env vars:
 #   STUB_SUPPORTS_CHANGESET  "1" (default) => `update --help` lists --changeset
 #   STUB_PNPM_VERSION        version printed by `pnpm --version` (default 11.5.0)
+if [ "$1" = "config" ] && [ "$2" = "list" ]; then
+  if [ -n "${STUB_CONFIG:-}" ]; then
+    printf '%s\n' "$STUB_CONFIG"
+  else
+    echo '{}'
+  fi
+  exit 0
+fi
+
 prefix=''
 if [ -n "${PNPM_CONFIG_MINIMUM_RELEASE_AGE:-}" ]; then
   prefix="PNPM_CONFIG_MINIMUM_RELEASE_AGE=$PNPM_CONFIG_MINIMUM_RELEASE_AGE "
