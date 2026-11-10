@@ -55,6 +55,10 @@ jobs:
 
 [`pnpm/setup`]: https://github.com/pnpm/setup
 
+Set `pr-labels` to existing repository labels separated by commas, without
+spaces around the commas. The value is passed directly to `gh pr create --label`,
+so label parsing follows the GitHub CLI's behavior.
+
 ## Updating GitHub Actions
 
 The action can also bump the GitHub Actions pinned in `.github/workflows/*.yml`
@@ -140,3 +144,4 @@ refresh tests require a pnpm build that supports the loaded linker.
 | `commit-message` | `chore: update dependencies` | Message of the update commit. |
 | `pr-title` | `chore: update dependencies` | Title of the pull request. |
 | `pr-body` | Automated dependency updates… | Body of the pull request. |
+| `pr-labels` | — | Comma-separated existing repository labels to add when creating a new pull request. |
